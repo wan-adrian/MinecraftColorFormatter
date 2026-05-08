@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build plugin
+        run: ./gradlew buildPlugin --no-daemon
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-distribution
+          path: build/distributions/*.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && contains(github.event.head_commit.message, '[release]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-distribution
+          path: dist
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -E '^[[:space:]]*version[[:space:]]*=' build.gradle | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/' | head -n1)"
+          if [ -z "${VERSION}" ]; then
+            echo "Could not determine version from build.gradle"
+            exit 1
+          fi
+          echo "tag=v${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.ver.outputs.tag }}"
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" dist/*.zip --clobber
+          else
+            gh release create "${TAG}" dist/*.zip --title "${TAG}" --generate-notes --target "${GITHUB_SHA}"
+          fi

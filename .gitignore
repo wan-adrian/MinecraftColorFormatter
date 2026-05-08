@@ -1,0 +1,24 @@
+### Gradle / Build outputs
+.gradle/
+build/
+out/
+.kotlin/
+
+### IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+.run/
+
+### IntelliJ Platform Gradle Plugin
+.intellijPlatform/
+
+### Local tooling / scratch
+.jdk/
+.claude/
+
+### OS / editor junk
+.DS_Store
+Thumbs.db
+*.log
