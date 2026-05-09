@@ -1,43 +1,39 @@
 package net.wanmine.mccolor.rendering
 
 import com.intellij.lang.annotation.AnnotationHolder
-import com.intellij.lang.annotation.Annotator
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
-import com.intellij.psi.PsiElement
+import com.intellij.ui.JBColor
 import net.wanmine.mccolor.color.LegacyColorCodeResolver
-import java.awt.Color
 
-/**
- * Highlights Minecraft legacy color codes (Bedrock palette) in Java/Kotlin string literals.
- *
- * Examples:
- * - "§dRezzy§5Land §8» §r"
- * - "\\u00A7dRezzy\\u00A75Land" (common source representation)
- */
-class MinecraftColorAnnotator : Annotator {
+abstract class MinecraftColorAnnotatorBase {
 
-    override fun annotate(element: PsiElement, holder: AnnotationHolder) {
-        val text = element.text ?: return
-        if (!isStringLiteral(text)) return
+    protected fun highlightStringLiteral(
+        project: Project,
+        rawText: String,
+        holder: AnnotationHolder,
+        fileOffset: Int,
+        initialColor: JBColor?
+    ) {
+        if (!isStringLiteral(rawText)) return
 
-        if (!text.contains(SECTION_SIGN) && !text.contains(UNICODE_ESCAPE, ignoreCase = true)) return
-
-        val fileOffset = element.textRange.startOffset
-        val stringStart = findStringStart(text)
-        val stringEnd = findStringEnd(text)
+        val stringStart = findStringStart(rawText)
+        val stringEnd = findStringEnd(rawText)
         if (stringStart == -1 || stringEnd == -1 || stringStart >= stringEnd) return
 
-        annotateLegacyCodes(text, holder, fileOffset, stringStart, stringEnd)
+        highlightLegacyCodes(project, rawText, holder, fileOffset, stringStart, stringEnd, initialColor)
     }
 
-    private fun annotateLegacyCodes(
+    protected fun highlightLegacyCodes(
+        project: Project,
         text: String,
         holder: AnnotationHolder,
         fileOffset: Int,
         stringStart: Int,
-        stringEnd: Int
+        stringEnd: Int,
+        initialColor: JBColor?
     ) {
-        var currentColor: Color? = null
+        var currentColor: JBColor? = initialColor
         var segmentStart = stringStart
         var i = stringStart
 
@@ -53,18 +49,19 @@ class MinecraftColorAnnotator : Annotator {
 
             val code = text[codeIndex].lowercaseChar()
 
-            // §r resets formatting (including color) to default.
-            if (code == 'r') {
-                if (segmentStart < i) {
-                    currentColor?.let { color ->
-                        TextHighlighter.highlightText(
-                            holder,
-                            TextRange(fileOffset + segmentStart, fileOffset + i),
-                            color
-                        )
-                    }
+            // Flush text up to the code with the current color.
+            if (segmentStart < i) {
+                currentColor?.let { color ->
+                    TextHighlighter.highlightText(
+                        holder,
+                        TextRange(fileOffset + segmentStart, fileOffset + i),
+                        color
+                    )
                 }
-                // Use the current color for the reset marker if we have one; otherwise don't force a color.
+            }
+
+            if (code == 'r') {
+                // Highlight the reset marker in the current color (if any), then clear.
                 currentColor?.let { color ->
                     TextHighlighter.highlightCode(
                         holder,
@@ -78,30 +75,16 @@ class MinecraftColorAnnotator : Annotator {
                 continue
             }
 
-            val nextColor = LegacyColorCodeResolver.resolve(code)
-            if (nextColor == null) {
-                // Unknown or non-color code (e.g. §l bold). Keep current color.
-                i = codeIndex + 1
-                continue
+            val nextColor = LegacyColorCodeResolver.resolve(code, project)
+            if (nextColor != null) {
+                TextHighlighter.highlightCode(
+                    holder,
+                    TextRange(fileOffset + i, fileOffset + codeIndex + 1),
+                    nextColor
+                )
+                currentColor = nextColor
             }
 
-            if (segmentStart < i) {
-                currentColor?.let { color ->
-                    TextHighlighter.highlightText(
-                        holder,
-                        TextRange(fileOffset + segmentStart, fileOffset + i),
-                        color
-                    )
-                }
-            }
-
-            TextHighlighter.highlightCode(
-                holder,
-                TextRange(fileOffset + i, fileOffset + codeIndex + 1),
-                nextColor
-            )
-
-            currentColor = nextColor
             i = codeIndex + 1
             segmentStart = i
         }
@@ -117,11 +100,28 @@ class MinecraftColorAnnotator : Annotator {
         }
     }
 
+    protected fun computeFinalColor(project: Project, value: String, startColor: JBColor? = null): JBColor? {
+        var current: JBColor? = startColor
+        var i = 0
+        while (i < value.length) {
+            val idx = value.indexOf(SECTION_SIGN, i)
+            if (idx < 0 || idx + 1 >= value.length) break
+            val code = value[idx + 1].lowercaseChar()
+            if (code == 'r') {
+                current = null
+            } else {
+                LegacyColorCodeResolver.resolve(code, project)?.let { current = it }
+            }
+            i = idx + 2
+        }
+        return current
+    }
+
     private fun sectionPrefixLengthAt(text: String, index: Int, stringEnd: Int): Int {
         if (index >= stringEnd) return 0
         if (text[index] == SECTION_SIGN) return 1
 
-        // Support the common source form "\u00A7" inside strings.
+        // Support the source form "\\u00A7" inside strings.
         if (index + 6 <= stringEnd &&
             text[index] == '\\' &&
             (text[index + 1] == 'u' || text[index + 1] == 'U') &&
@@ -156,9 +156,8 @@ class MinecraftColorAnnotator : Annotator {
         return if (lastQuote > firstQuote) lastQuote else -1
     }
 
-    private companion object {
-        private const val SECTION_SIGN: Char = '\u00A7'
-        private const val UNICODE_ESCAPE: String = "\\u00A7"
+    protected companion object {
+        const val SECTION_SIGN: Char = '\u00A7'
+        const val UNICODE_ESCAPE: String = "\\u00A7"
     }
 }
-

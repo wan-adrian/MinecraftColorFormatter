@@ -1,6 +1,5 @@
 <idea-plugin>
     <extensions defaultExtensionNs="com.intellij">
-        <annotator language="kotlin" implementationClass="net.wanmine.mccolor.rendering.MinecraftColorAnnotator"/>
+        <annotator language="kotlin" implementationClass="net.wanmine.mccolor.rendering.MinecraftColorKotlinAnnotator"/>
     </extensions>
 </idea-plugin>
-

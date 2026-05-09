@@ -1,7 +1,8 @@
 package net.wanmine.mccolor.color
 
+import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
-import java.awt.Color
+import net.wanmine.mccolor.settings.MinecraftColorProjectSettings
 
 /**
  * Minecraft Bedrock legacy color codes using the section sign '§' (U+00A7).
@@ -9,44 +10,44 @@ import java.awt.Color
  */
 object LegacyColorCodeResolver {
 
-    // Based on the Bedrock Edition color code table.
-    private val BEDROCK_COLORS: Map<Char, JBColor> = mapOf(
-        '0' to fixed(0x00, 0x00, 0x00), // black
-        '1' to fixed(0x00, 0x00, 0xAA), // dark_blue
-        '2' to fixed(0x00, 0xAA, 0x00), // dark_green
-        '3' to fixed(0x00, 0xAA, 0xAA), // dark_aqua
-        '4' to fixed(0xAA, 0x00, 0x00), // dark_red
-        '5' to fixed(0xAA, 0x00, 0xAA), // dark_purple
-        '6' to fixed(0xFF, 0xAA, 0x00), // gold
-        '7' to fixed(0xAA, 0xAA, 0xAA), // gray
-        '8' to fixed(0x55, 0x55, 0x55), // dark_gray
-        '9' to fixed(0x55, 0x55, 0xFF), // blue
-        'a' to fixed(0x55, 0xFF, 0x55), // green
-        'b' to fixed(0x55, 0xFF, 0xFF), // aqua
-        'c' to fixed(0xFF, 0x55, 0x55), // red
-        'd' to fixed(0xFF, 0x55, 0xFF), // light_purple
-        'e' to fixed(0xFF, 0xFF, 0x55), // yellow
-        'f' to fixed(0xFF, 0xFF, 0xFF), // white
+    fun resolve(code: Char, project: Project?) : JBColor? {
+        val c = code.lowercaseChar()
+        val s = project?.let { MinecraftColorProjectSettings.getInstance(it).settingsState() }
 
-        // Bedrock-only material colors.
-        'g' to fixed(0xDD, 0xD6, 0x05), // minecoin_gold
-        'h' to fixed(0xE3, 0xD4, 0xD1), // material_quartz
-        'i' to fixed(0xCE, 0xCA, 0xCA), // material_iron
-        'j' to fixed(0x44, 0x3A, 0x3B), // material_netherite
-        'm' to fixed(0x97, 0x16, 0x07), // material_redstone
-        'n' to fixed(0xB4, 0x68, 0x4D), // material_copper
-        'p' to fixed(0xDE, 0xB1, 0x2D), // material_gold
-        'q' to fixed(0x47, 0xA0, 0x36), // material_emerald
-        's' to fixed(0x2C, 0xBA, 0xA8), // material_diamond
-        't' to fixed(0x21, 0x49, 0x7B), // material_lapis
-        'u' to fixed(0x9A, 0x5C, 0xC6), // material_amethyst
-        'v' to fixed(0xEB, 0x71, 0x14)  // material_resin
-    )
+        val raw = when (c) {
+            '0' -> s?.c0 ?: MinecraftColorProjectSettings.DEFAULT_0
+            '1' -> s?.c1 ?: MinecraftColorProjectSettings.DEFAULT_1
+            '2' -> s?.c2 ?: MinecraftColorProjectSettings.DEFAULT_2
+            '3' -> s?.c3 ?: MinecraftColorProjectSettings.DEFAULT_3
+            '4' -> s?.c4 ?: MinecraftColorProjectSettings.DEFAULT_4
+            '5' -> s?.c5 ?: MinecraftColorProjectSettings.DEFAULT_5
+            '6' -> s?.c6 ?: MinecraftColorProjectSettings.DEFAULT_6
+            '7' -> s?.c7 ?: MinecraftColorProjectSettings.DEFAULT_7
+            '8' -> s?.c8 ?: MinecraftColorProjectSettings.DEFAULT_8
+            '9' -> s?.c9 ?: MinecraftColorProjectSettings.DEFAULT_9
+            'a' -> s?.ca ?: MinecraftColorProjectSettings.DEFAULT_A
+            'b' -> s?.cb ?: MinecraftColorProjectSettings.DEFAULT_B
+            'c' -> s?.cc ?: MinecraftColorProjectSettings.DEFAULT_C
+            'd' -> s?.cd ?: MinecraftColorProjectSettings.DEFAULT_D
+            'e' -> s?.ce ?: MinecraftColorProjectSettings.DEFAULT_E
+            'f' -> s?.cf ?: MinecraftColorProjectSettings.DEFAULT_F
 
-    fun resolve(code: Char): Color? = BEDROCK_COLORS[code.lowercaseChar()]
+            'g' -> s?.minecoinGold ?: MinecraftColorProjectSettings.DEFAULT_MINECOIN_GOLD
+            'h' -> s?.materialQuartz ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_QUARTZ
+            'i' -> s?.materialIron ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_IRON
+            'j' -> s?.materialNetherite ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_NETHERITE
+            'm' -> s?.materialRedstone ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_REDSTONE
+            'n' -> s?.materialCopper ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_COPPER
+            'p' -> s?.materialGold ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_GOLD
+            'q' -> s?.materialEmerald ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_EMERALD
+            's' -> s?.materialDiamond ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_DIAMOND
+            't' -> s?.materialLapis ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_LAPIS
+            'u' -> s?.materialAmethyst ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_AMETHYST
+            'v' -> s?.materialResin ?: MinecraftColorProjectSettings.DEFAULT_MATERIAL_RESIN
+            else -> return null
+        }
 
-    private fun fixed(r: Int, g: Int, b: Int): JBColor {
-        val c = Color(r, g, b)
-        return JBColor(c, c)
+        val vec = ColorVector.parse(raw) ?: return null
+        return vec.toJBColor()
     }
 }
